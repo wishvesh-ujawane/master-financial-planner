@@ -1,8 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "BASE_PATH=/ PORT=5173 pnpm --filter @workspace/master-financial-planner build",
-  "outputDirectory": "artifacts/master-financial-planner/dist/public",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
