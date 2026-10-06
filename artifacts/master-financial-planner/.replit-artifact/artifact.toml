@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Master Financial Planner"
+description = "A private, mobile-friendly personal finance planner for tracking cash flow, assets, liabilities, investment allocations, SIPs, and financial goals. Data stays in the browser by default, with optional Google Drive backup and restore."
+version = "1.0.0"
+id = "artifacts/master-financial-planner"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24895
+
+[services.development]
+run = "pnpm --filter @workspace/master-financial-planner run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/master-financial-planner", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/master-financial-planner/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24895"
+BASE_PATH = "/"

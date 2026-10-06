@@ -1,0 +1,1 @@
+- [Planner storage scope](planner-storage-scope.md) — Keep finance data local; use manual JSON backups until Drive is brought back into scope.
