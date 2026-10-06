@@ -23,14 +23,52 @@ const CATEGORIES = [
 ];
 const ITEM_GROUPS = ['Home & property','Other real estate','Jewellery','SGB','ULIP/insurance','EPF/PPF/VPF','Fixed deposit','Debt fund','Domestic equity','US equity','Mutual fund','Smallcase','Savings account','Cash','Liquid fund','Gold ETF','Crypto','REITs','Vehicle','Other'];
 const GROUPS: Record<Kind,string> = { holding:'Investments',asset:'Assets',liability:'Liabilities',goal:'Goals',inflow:'Income',outflow:'Monthly expenses',assumption:'Return assumption' };
-const FIELDS: Record<Kind,{key:string;label:string;type?:string}[]> = {
-  holding:[{key:'name',label:'Name'},{key:'category',label:'Category'},{key:'value',label:'Current value',type:'number'},{key:'invested',label:'Total contributed',type:'number'},{key:'sip',label:'Monthly SIP',type:'number'},{key:'note',label:'Note'}],
-  asset:[{key:'name',label:'Particular'},{key:'group',label:'Type'},{key:'amount',label:'Current value',type:'number'}],
-  liability:[{key:'name',label:'Particular'},{key:'group',label:'Type'},{key:'amount',label:'Outstanding',type:'number'}],
-  goal:[{key:'name',label:'What are you saving for?'},{key:'priority',label:'Priority'},{key:'years',label:'Years from now',type:'number'},{key:'current',label:'Already set aside',type:'number'},{key:'target',label:'Today’s target',type:'number'},{key:'inflation',label:'Inflation assumption (%)',type:'number'},{key:'stepUp',label:'Annual SIP step-up (%)',type:'number'},{key:'sip',label:'Monthly SIP today',type:'number'}],
-  inflow:[{key:'name',label:'Income source'},{key:'group',label:'Type'},{key:'amount',label:'Monthly amount',type:'number'}],
-  outflow:[{key:'name',label:'Expense'},{key:'group',label:'Type'},{key:'amount',label:'Monthly amount',type:'number'}],
-  assumption:[{key:'className',label:'Asset class'},{key:'shortTerm',label:'Short term (<3y), expected return (%)',type:'number'},{key:'mediumTerm',label:'Medium term (3–6y), expected return (%)',type:'number'},{key:'longTerm',label:'Long term (>6y), expected return (%)',type:'number'},{key:'target',label:'Required allocation (%)',type:'number'}],
+const FIELDS: Record<Kind,{key:string;label:string;type?:string;hint:string}[]> = {
+  holding:[
+    {key:'name',label:'Name',hint:'A short label for this holding, e.g. “HDFC Bank” or “Nifty 50 Index Fund”.'},
+    {key:'category',label:'Category',hint:'The asset class this holding belongs to. Drives your allocation and net-worth breakdown.'},
+    {key:'value',label:'Current value',type:'number',hint:'What this holding is worth today at current market price (₹).'},
+    {key:'invested',label:'Total contributed',type:'number',hint:'Total money you have put in so far across all purchases/SIPs (₹). Used to show your gain or loss.'},
+    {key:'sip',label:'Monthly SIP',type:'number',hint:'Amount you invest into this holding every month (₹). Enter 0 if it is a one-time holding.'},
+    {key:'note',label:'Note',hint:'Optional reminder — account, folio number, or anything you want to remember.'},
+  ],
+  asset:[
+    {key:'name',label:'Particular',hint:'What the asset is, e.g. “Home · Pune” or “Car”.'},
+    {key:'group',label:'Type',hint:'The kind of asset. Used to group your net worth.'},
+    {key:'amount',label:'Current value',type:'number',hint:'Today’s resale or market value of this asset (₹).'},
+  ],
+  liability:[
+    {key:'name',label:'Particular',hint:'What you owe on, e.g. “Home loan” or “Credit card”.'},
+    {key:'group',label:'Type',hint:'The kind of borrowing this is.'},
+    {key:'amount',label:'Outstanding',type:'number',hint:'The balance still left to repay (₹), not the original loan amount.'},
+  ],
+  goal:[
+    {key:'name',label:'What are you saving for?',hint:'The thing you are saving toward, e.g. “Child’s education” or “Retirement”.'},
+    {key:'priority',label:'Priority',hint:'How important this goal is. Higher-priority goals are funded first in the plan.'},
+    {key:'years',label:'Years from now',type:'number',hint:'In how many years you will need this money.'},
+    {key:'current',label:'Already set aside',type:'number',hint:'Money you have already saved toward this specific goal (₹).'},
+    {key:'target',label:'Today’s target',type:'number',hint:'What the goal costs in today’s prices (₹). Inflation is added on top automatically.'},
+    {key:'inflation',label:'Inflation assumption (%)',type:'number',hint:'Yearly % you expect this goal’s cost to rise. 6 is a common default in India.'},
+    {key:'stepUp',label:'Annual SIP step-up (%)',type:'number',hint:'Yearly % increase in your monthly SIP, e.g. as your income grows. Use 0 for a flat SIP.'},
+    {key:'sip',label:'Monthly SIP today',type:'number',hint:'Amount you can invest toward this goal each month right now (₹).'},
+  ],
+  inflow:[
+    {key:'name',label:'Income source',hint:'Where the money comes from, e.g. “Salary” or “Rent received”.'},
+    {key:'group',label:'Type',hint:'The kind of income this is.'},
+    {key:'amount',label:'Monthly amount',type:'number',hint:'Amount received each month (₹). Use a monthly average for variable income.'},
+  ],
+  outflow:[
+    {key:'name',label:'Expense',hint:'What the spending is, e.g. “Rent” or “Groceries”.'},
+    {key:'group',label:'Type',hint:'Essential (must-pay) or Flexible (can cut back if needed).'},
+    {key:'amount',label:'Monthly amount',type:'number',hint:'Typical amount you spend on this each month (₹).'},
+  ],
+  assumption:[
+    {key:'className',label:'Asset class',hint:'The asset class these expected returns and allocation apply to.'},
+    {key:'shortTerm',label:'Short term (<3y), expected return (%)',type:'number',hint:'Annual return you expect if the money is needed within 3 years (%).'},
+    {key:'mediumTerm',label:'Medium term (3–6y), expected return (%)',type:'number',hint:'Annual return you expect for a 3–6 year horizon (%).'},
+    {key:'longTerm',label:'Long term (>6y), expected return (%)',type:'number',hint:'Annual return you expect for money held beyond 6 years (%).'},
+    {key:'target',label:'Required allocation (%)',type:'number',hint:'Share of your total portfolio you want in this asset class (%). All classes should add up to 100.'},
+  ],
 };
 function App() {
   const [startup] = useState(() => {
@@ -349,7 +387,7 @@ function EntryModal({kind,record,onClose,onSave}:{kind:Kind;record?:FormRecord;o
   useEffect(()=>{first.current?.focus();},[]);
   const submit=(e:FormEvent)=>{e.preventDefault();onSave(values);};
   return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-head"><div><div className="eyebrow">{record?'Edit your plan':'Add to your plan'}</div><h2 className="modal-title" id="modal-title">{record?'Update':'New'} {GROUPS[kind].toLowerCase().replace(/s$/,'')}</h2></div><button className="icon-btn" onClick={onClose} aria-label="Close dialog"><X size={18}/></button></div>
-    <form onSubmit={submit}><div className="form-grid">{FIELDS[kind].map((f,i)=><div className={`field ${f.key==='note'?'full':''}`} key={f.key}><label htmlFor={`entry-${f.key}`}>{f.label}</label>{f.key==='category'?<select id={`entry-${f.key}`} value={String(values[f.key]||'')} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))}>{CATEGORIES.slice(1).map(c=><option key={c}>{c}</option>)}</select>:f.key==='priority'?<select id={`entry-${f.key}`} value={String(values[f.key]||'Medium')} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))}>{['High','Medium','Low'].map(c=><option key={c}>{c}</option>)}</select>:f.key==='group'&&(kind==='asset'||kind==='liability')?<select id={`entry-${f.key}`} value={String(values[f.key]||'')} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))}>{[...new Set([String(values[f.key]||''),...(kind==='asset'?ITEM_GROUPS:['Home loan','Education loan','Credit card','Personal loan','Plot loan','Other borrowing'])])].filter(Boolean).map(option=><option key={option}>{option}</option>)}</select>:<input ref={i===0?first:undefined} id={`entry-${f.key}`} type={f.type||'text'} min={f.type==='number'?0:undefined} step={f.type==='number'?'any':undefined} required={f.key!=='note'} value={values[f.key]===undefined?'':String(values[f.key])} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))} placeholder={f.type==='number'?'0':''}/>}</div>)}</div>
+    <form onSubmit={submit}><div className="form-grid">{FIELDS[kind].map((f,i)=><div className={`field ${f.key==='note'?'full':''}`} key={f.key}><label htmlFor={`entry-${f.key}`}>{f.label}<span className="hint" title={f.hint} tabIndex={0} role="img" aria-label={f.hint}><CircleHelp size={13}/></span></label>{f.key==='category'?<select id={`entry-${f.key}`} value={String(values[f.key]||'')} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))}>{CATEGORIES.slice(1).map(c=><option key={c}>{c}</option>)}</select>:f.key==='priority'?<select id={`entry-${f.key}`} value={String(values[f.key]||'Medium')} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))}>{['High','Medium','Low'].map(c=><option key={c}>{c}</option>)}</select>:f.key==='group'&&(kind==='asset'||kind==='liability')?<select id={`entry-${f.key}`} value={String(values[f.key]||'')} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))}>{[...new Set([String(values[f.key]||''),...(kind==='asset'?ITEM_GROUPS:['Home loan','Education loan','Credit card','Personal loan','Plot loan','Other borrowing'])])].filter(Boolean).map(option=><option key={option}>{option}</option>)}</select>:<input ref={i===0?first:undefined} id={`entry-${f.key}`} type={f.type||'text'} min={f.type==='number'?0:undefined} step={f.type==='number'?'any':undefined} required={f.key!=='note'} value={values[f.key]===undefined?'':String(values[f.key])} onChange={e=>setValues(v=>({...v,[f.key]:e.target.value}))} placeholder={f.type==='number'?'0':''}/>}</div>)}</div>
       <div className="modal-foot"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary"><Check size={14}/>{record?'Save changes':'Add entry'}</button></div>
     </form></section></div>;
 }

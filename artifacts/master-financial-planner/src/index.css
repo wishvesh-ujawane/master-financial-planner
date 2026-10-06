@@ -139,7 +139,9 @@ td:first-child {color:#30483d;font-weight:600}
 .form-grid {display:grid;grid-template-columns:1fr 1fr;gap:13px}
 .field {display:flex;flex-direction:column;gap:6px}
 .field.full {grid-column:1/-1}
-.field label {font-size:11px;color:#65736a;font-weight:600}
+.field label {font-size:11px;color:#65736a;font-weight:600;display:flex;align-items:center;gap:5px}
+.field label .hint {display:inline-flex;align-items:center;color:#a7b2a8;cursor:help;outline:none}
+.field label .hint:hover,.field label .hint:focus-visible {color:#5c7a66}
 .field input,.field select {width:100%;border:1px solid #ddd9ca;background:#fffdf6;border-radius:8px;padding:10px 11px;font-size:13px;color:#293f35;outline:none}
 .field input:focus,.field select:focus {border-color:#72977f;box-shadow:0 0 0 3px rgba(76,123,91,.12)}
 .modal-backdrop {position:fixed;inset:0;background:rgba(25,42,34,.42);display:grid;place-items:center;padding:20px;z-index:50;animation:fade .18s}
