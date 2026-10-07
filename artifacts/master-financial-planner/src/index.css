@@ -128,6 +128,8 @@ td:first-child {color:#30483d;font-weight:600}
 .empty p {font-size:12px;line-height:1.6;margin:0 auto 14px;max-width:270px}
 .pill {font-size:10px;border-radius:99px;padding:5px 9px;background:#e8eee6;color:#4a6b56;display:inline-flex}
 .notice {display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border-radius:10px;background:#f2eee1;border:1px solid #e8e0cd;color:#657269;font-size:12px;line-height:1.5;margin-bottom:18px}
+.notice-close {margin-left:auto;flex-shrink:0;border:0;background:transparent;color:#8a9389;cursor:pointer;display:inline-flex;padding:2px;border-radius:6px;align-self:flex-start}
+.notice-close:hover {color:#4d735d}
 .setting-row {display:flex;justify-content:space-between;align-items:center;gap:15px;padding:17px 0;border-top:1px solid #eeece3}
 .setting-row:first-of-type {border-top:0}
 .setting-title {font-size:13px;font-weight:600;color:#334c40}
@@ -144,6 +146,23 @@ td:first-child {color:#30483d;font-weight:600}
 .field label .hint:hover,.field label .hint:focus-visible {color:#5c7a66}
 .field input,.field select {width:100%;border:1px solid #ddd9ca;background:#fffdf6;border-radius:8px;padding:10px 11px;font-size:13px;color:#293f35;outline:none}
 .field input:focus,.field select:focus {border-color:#72977f;box-shadow:0 0 0 3px rgba(76,123,91,.12)}
+.field textarea {width:100%;border:1px solid #ddd9ca;background:#fffdf6;border-radius:8px;padding:10px 11px;font-size:13px;color:#293f35;outline:none;font-family:inherit;resize:vertical;min-height:62px}
+.field textarea:focus {border-color:#72977f;box-shadow:0 0 0 3px rgba(76,123,91,.12)}
+.field .input-reveal {position:relative;display:flex;align-items:center}
+.field .input-reveal input {padding-right:38px}
+.field .input-reveal button {position:absolute;right:8px;border:0;background:transparent;color:#8a9389;cursor:pointer;display:inline-flex;padding:4px;border-radius:6px}
+.field .input-reveal button:hover {color:#4d735d}
+.vault-record {border:1px solid #eeece3;border-radius:12px;padding:15px 16px;background:#fffdf6}
+.vault-record-head {display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.vault-record-title {font:500 15px var(--app-font-serif);color:#30483d;margin:0}
+.vault-record-sub {font-size:11px;color:#8a9389;margin-top:2px}
+.vault-record-actions {display:flex;gap:4px;flex-shrink:0}
+.vault-field-row {display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #f2f0e7;font-size:12px}
+.vault-field-row:first-child {border-top:0}
+.vault-field-row .k {color:#8a9389;flex-shrink:0}
+.vault-field-row .v {color:#2d443a;text-align:right;word-break:break-word;display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.vault-field-row .v button {border:0;background:transparent;color:#a7b2a8;cursor:pointer;display:inline-flex;padding:2px;border-radius:5px}
+.vault-field-row .v button:hover {color:#4d735d}
 .modal-backdrop {position:fixed;inset:0;background:rgba(25,42,34,.42);display:grid;place-items:center;padding:20px;z-index:50;animation:fade .18s}
 .modal {width:min(520px,100%);max-height:90dvh;overflow:auto;background:#faf8f0;border:1px solid #e2dece;border-radius:16px;padding:23px;box-shadow:0 18px 60px rgba(28,45,35,.22);animation:rise .22s}
 .modal-head {display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}

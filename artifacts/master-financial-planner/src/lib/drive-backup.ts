@@ -1,10 +1,13 @@
 import type { PlanData } from './planner-store';
+import type { VaultData } from './vault-store';
 
 const BACKUP_FILENAME = 'goodmeasure-backup.json';
+const VAULT_BACKUP_FILENAME = 'goodmeasure-vault.json';
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 
 export type BackupEnvelope = { schema: 'goodmeasure/v2'; exportedAt: string; plan: PlanData };
+export type VaultBackupEnvelope = { schema: 'goodmeasure-vault/v1'; exportedAt: string; vault: VaultData };
 export type BackupMeta = { id: string; modifiedTime: string };
 
 async function driveError(response: Response): Promise<string> {
@@ -16,8 +19,8 @@ async function driveError(response: Response): Promise<string> {
   }
 }
 
-async function findBackup(token: string): Promise<BackupMeta | null> {
-  const query = encodeURIComponent(`name='${BACKUP_FILENAME}'`);
+async function findBackup(token: string, filename = BACKUP_FILENAME): Promise<BackupMeta | null> {
+  const query = encodeURIComponent(`name='${filename}'`);
   const url = `${DRIVE_FILES}?spaces=appDataFolder&q=${query}&fields=files(id,modifiedTime)&orderBy=modifiedTime desc`;
   const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) throw new Error(await driveError(response));
@@ -64,4 +67,45 @@ export async function restoreFromDrive(token: string): Promise<BackupEnvelope | 
   });
   if (!response.ok) throw new Error(await driveError(response));
   return (await response.json()) as BackupEnvelope;
+}
+
+export function getVaultBackupMeta(token: string): Promise<BackupMeta | null> {
+  return findBackup(token, VAULT_BACKUP_FILENAME);
+}
+
+export async function backupVaultToDrive(token: string, vault: VaultData): Promise<BackupMeta> {
+  const payload: VaultBackupEnvelope = { schema: 'goodmeasure-vault/v1', exportedAt: new Date().toISOString(), vault };
+  const existing = await findBackup(token, VAULT_BACKUP_FILENAME);
+  if (existing) {
+    const response = await fetch(`${DRIVE_UPLOAD}/${existing.id}?uploadType=media&fields=id,modifiedTime`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(await driveError(response));
+    return (await response.json()) as BackupMeta;
+  }
+  const boundary = `gm-${Math.random().toString(36).slice(2)}`;
+  const metadata = { name: VAULT_BACKUP_FILENAME, parents: ['appDataFolder'] };
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payload)}\r\n` +
+    `--${boundary}--`;
+  const response = await fetch(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id,modifiedTime`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  if (!response.ok) throw new Error(await driveError(response));
+  return (await response.json()) as BackupMeta;
+}
+
+export async function restoreVaultFromDrive(token: string): Promise<VaultBackupEnvelope | null> {
+  const existing = await findBackup(token, VAULT_BACKUP_FILENAME);
+  if (!existing) return null;
+  const response = await fetch(`${DRIVE_FILES}/${existing.id}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await driveError(response));
+  return (await response.json()) as VaultBackupEnvelope;
 }

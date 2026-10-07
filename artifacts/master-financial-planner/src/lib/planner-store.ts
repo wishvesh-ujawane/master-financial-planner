@@ -186,6 +186,10 @@ export function loadPlan(): PlanData {
 }
 export function savePlan(plan: PlanData) { localStorage.setItem(KEY, JSON.stringify(plan)); }
 export function blankPlan(): PlanData { return JSON.parse(JSON.stringify(seed)) as PlanData; }
+export function emptyPlan(): PlanData {
+  const empty = normalizePlan({ sampleData: false, profile: { age: 0, monthlyIncome: 0, monthlyExpenses: 0 }, holdings: [], assets: [], liabilities: [], goals: [], inflows: [], outflows: [], assumptions: [] });
+  return empty ?? blankPlan();
+}
 export function currency(n: number) {
   if (!Number.isFinite(n)) return '₹0';
   return new Intl.NumberFormat('en-IN', { style:'currency',currency:'INR',maximumFractionDigits:0 }).format(n);
