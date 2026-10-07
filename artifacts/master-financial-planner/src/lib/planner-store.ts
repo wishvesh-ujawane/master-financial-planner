@@ -1,7 +1,8 @@
 export type Holding = { id: string; name: string; category: string; value: number; invested: number; sip: number; note?: string };
 export type Goal = { id: string; name: string; priority: string; years: number; current: number; target: number; inflation: number; stepUp: number; sip: number };
 export type LineItem = { id: string; name: string; amount: number; group: string };
-export type Assumption = { className: string; shortTerm: number; mediumTerm: number; longTerm: number; target: number };
+// Mirrors the Excel model: one expected return per class + allocation weight (%) for each goal horizon.
+export type Assumption = { className: string; expectedReturn: number; shortWeight: number; mediumWeight: number; longWeight: number };
 export type PlanData = {
   sampleData: boolean;
   profile: { age: number; monthlyIncome: number; monthlyExpenses: number };
@@ -28,12 +29,12 @@ const seed: PlanData = {
   inflows: [{id:'i1',name:'Monthly take-home',amount:185000,group:'Salary'},{id:'i2',name:'Freelance income',amount:12000,group:'Other'}],
   outflows: [{id:'o1',name:'Home & utilities',amount:36000,group:'Essential'},{id:'o2',name:'Everyday living',amount:28500,group:'Essential'},{id:'o3',name:'Family & care',amount:14000,group:'Essential'},{id:'o4',name:'Lifestyle',amount:20000,group:'Flexible'}],
   assumptions: [
-    {className:'Domestic Equity',shortTerm:7,mediumTerm:10,longTerm:12,target:45},
-    {className:'US Equity',shortTerm:6,mediumTerm:9,longTerm:11,target:10},
-    {className:'Debt',shortTerm:5,mediumTerm:6,longTerm:7,target:25},
-    {className:'Gold (SGB/ETF)',shortTerm:5,mediumTerm:6,longTerm:7,target:8},
-    {className:'Crypto',shortTerm:0,mediumTerm:0,longTerm:0,target:0},
-    {className:'Real Estate/REITs',shortTerm:4,mediumTerm:6,longTerm:8,target:12},
+    {className:'Domestic Equity',expectedReturn:12,shortWeight:0,mediumWeight:40,longWeight:60},
+    {className:'US Equity',expectedReturn:12,shortWeight:0,mediumWeight:0,longWeight:10},
+    {className:'Debt',expectedReturn:6,shortWeight:100,mediumWeight:50,longWeight:15},
+    {className:'Gold (SGB/ETF)',expectedReturn:6,shortWeight:0,mediumWeight:10,longWeight:5},
+    {className:'Crypto',expectedReturn:20,shortWeight:0,mediumWeight:0,longWeight:5},
+    {className:'Real Estate/REITs',expectedReturn:10,shortWeight:0,mediumWeight:0,longWeight:5},
   ],
 };
 const KEY = 'goodmeasure-plan-v2';
@@ -62,97 +63,58 @@ const ASSUMPTION_ALIASES: Record<string, string> = {
   'real estate/reits': 'Real Estate/REITs',
 };
 function canonicalizeAssumptions(rows: Assumption[]): Assumption[] {
-  const merged = new Map<string, { target: number; weighted: [number, number, number]; weights: [number, number, number]; sums: [number, number, number]; count: number }>();
+  const byClass = new Map<string, Assumption>();
   for (const row of rows) {
     const key = row.className.trim().toLowerCase();
     const className = ASSUMPTION_ALIASES[key] ?? row.className.trim();
-    const aggregate = merged.get(className) ?? { target: 0, weighted: [0, 0, 0], weights: [0, 0, 0], sums: [0, 0, 0], count: 0 };
-    const returns = [row.shortTerm, row.mediumTerm, row.longTerm] as const;
-    aggregate.target += row.target;
-    aggregate.count++;
-    returns.forEach((value, index) => {
-      aggregate.sums[index] += value;
-      aggregate.weighted[index] += value * row.target;
-      aggregate.weights[index] += row.target;
-    });
-    merged.set(className, aggregate);
+    const existing = byClass.get(className);
+    if (existing) {
+      existing.shortWeight += row.shortWeight;
+      existing.mediumWeight += row.mediumWeight;
+      existing.longWeight += row.longWeight;
+    } else {
+      byClass.set(className, { className, expectedReturn: row.expectedReturn, shortWeight: row.shortWeight, mediumWeight: row.mediumWeight, longWeight: row.longWeight });
+    }
   }
-  const result = seed.assumptions.map((defaultItem) => {
-    const aggregate = merged.get(defaultItem.className);
-    if (!aggregate) return { ...defaultItem, target: 0 };
-    return {
-      className: defaultItem.className,
-      shortTerm: aggregate.weights[0] ? aggregate.weighted[0] / aggregate.weights[0] : aggregate.sums[0] / aggregate.count,
-      mediumTerm: aggregate.weights[1] ? aggregate.weighted[1] / aggregate.weights[1] : aggregate.sums[1] / aggregate.count,
-      longTerm: aggregate.weights[2] ? aggregate.weighted[2] / aggregate.weights[2] : aggregate.sums[2] / aggregate.count,
-      target: aggregate.target,
-    };
-  });
-  for (const [className, aggregate] of merged) {
-    if (seed.assumptions.some(item => item.className === className)) continue;
-    result.push({
-      className,
-      shortTerm: aggregate.weights[0] ? aggregate.weighted[0] / aggregate.weights[0] : aggregate.sums[0] / aggregate.count,
-      mediumTerm: aggregate.weights[1] ? aggregate.weighted[1] / aggregate.weights[1] : aggregate.sums[1] / aggregate.count,
-      longTerm: aggregate.weights[2] ? aggregate.weighted[2] / aggregate.weights[2] : aggregate.sums[2] / aggregate.count,
-      target: aggregate.target,
-    });
+  const result = seed.assumptions.map((defaultItem) =>
+    byClass.get(defaultItem.className) ?? { ...defaultItem, shortWeight: 0, mediumWeight: 0, longWeight: 0 });
+  for (const [className, row] of byClass) {
+    if (!seed.assumptions.some(item => item.className === className)) result.push(row);
   }
   return result;
 }
+function legacyToWeights(className: string): Pick<Assumption, 'shortWeight' | 'mediumWeight' | 'longWeight'> {
+  const match = seed.assumptions.find(item => item.className === className);
+  return { shortWeight: match?.shortWeight ?? 0, mediumWeight: match?.mediumWeight ?? 0, longWeight: match?.longWeight ?? 0 };
+}
 function migrateLegacyAssumptions(value: unknown): Assumption[] | null {
   if (!Array.isArray(value)) return null;
-  if (value.every((item) => isRecord(item) && text(item.className) && finite(item.shortTerm) && finite(item.mediumTerm) && finite(item.longTerm) && finite(item.target))) {
+  if (value.every((item) => isRecord(item) && text(item.className) && finite(item.expectedReturn) && finite(item.shortWeight) && finite(item.mediumWeight) && finite(item.longWeight))) {
     return canonicalizeAssumptions(value as Assumption[]);
   }
-  if (!value.every((item) => isRecord(item) && text(item.className) && text(item.horizon) && finite(item.expected) && finite(item.target))) return null;
-  const sourceRows = new Map<string, { className: string; target: number; short: number[]; medium: number[]; long: number[]; fallback: number[] }>();
-  for (const raw of value) {
-    const item = raw as { className: string; horizon: string; expected: number; target: number };
-    const key = item.className.trim().toLowerCase();
-    const source = sourceRows.get(key) ?? { className: ASSUMPTION_ALIASES[key] ?? item.className.trim(), target: item.target, short: [], medium: [], long: [], fallback: [] };
-    const horizon = item.horizon.toLowerCase();
-    if (horizon.includes('short')) source.short.push(item.expected);
-    else if (horizon.includes('medium')) source.medium.push(item.expected);
-    else if (horizon.includes('long')) source.long.push(item.expected);
-    else source.fallback.push(item.expected);
-    sourceRows.set(key, source);
-  }
-  const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-  const merged = new Map<string, { target: number; weighted: [number, number, number]; weights: [number, number, number] }>();
-  for (const source of sourceRows.values()) {
-    const fallback = average(source.fallback) ?? average([...source.short, ...source.medium, ...source.long]) ?? 0;
-    const returns = [
-      average(source.short) ?? fallback,
-      average(source.medium) ?? fallback,
-      average(source.long) ?? fallback,
-    ] as const;
-    const aggregate = merged.get(source.className) ?? { target: 0, weighted: [0, 0, 0], weights: [0, 0, 0] };
-    aggregate.target += source.target;
-    returns.forEach((value, index) => {
-      aggregate.weighted[index] += value * source.target;
-      aggregate.weights[index] += source.target;
+  if (value.every((item) => isRecord(item) && text(item.className) && finite(item.shortTerm) && finite(item.mediumTerm) && finite(item.longTerm) && finite(item.target))) {
+    const rows = (value as { className: string; shortTerm: number; mediumTerm: number; longTerm: number }[]).map((item) => {
+      const className = ASSUMPTION_ALIASES[item.className.trim().toLowerCase()] ?? item.className.trim();
+      return { className, expectedReturn: item.longTerm, ...legacyToWeights(className) };
     });
-    merged.set(source.className, aggregate);
+    return canonicalizeAssumptions(rows);
   }
-  const assumptions=seed.assumptions.map((defaultItem) => {
-    const aggregate = merged.get(defaultItem.className);
-    if (!aggregate) return { ...defaultItem, target: 0 };
-    return {
-      className: defaultItem.className,
-      shortTerm: aggregate.weights[0] ? aggregate.weighted[0] / aggregate.weights[0] : defaultItem.shortTerm,
-      mediumTerm: aggregate.weights[1] ? aggregate.weighted[1] / aggregate.weights[1] : defaultItem.mediumTerm,
-      longTerm: aggregate.weights[2] ? aggregate.weighted[2] / aggregate.weights[2] : defaultItem.longTerm,
-      target: aggregate.target,
-    };
-  }).concat([...merged.entries()].filter(([name]) => !seed.assumptions.some(item => item.className === name)).map(([className, aggregate]) => ({
-    className,
-    shortTerm: aggregate.weights[0] ? aggregate.weighted[0] / aggregate.weights[0] : 0,
-    mediumTerm: aggregate.weights[1] ? aggregate.weighted[1] / aggregate.weights[1] : 0,
-    longTerm: aggregate.weights[2] ? aggregate.weighted[2] / aggregate.weights[2] : 0,
-    target: aggregate.target,
-  })));
-  return canonicalizeAssumptions(assumptions);
+  if (!value.every((item) => isRecord(item) && text(item.className) && text(item.horizon) && finite(item.expected) && finite(item.target))) return null;
+  const sourceRows = new Map<string, { className: string; returns: number[] }>();
+  for (const raw of value) {
+    const item = raw as { className: string; horizon: string; expected: number };
+    const key = item.className.trim().toLowerCase();
+    const className = ASSUMPTION_ALIASES[key] ?? item.className.trim();
+    const source = sourceRows.get(className) ?? { className, returns: [] };
+    source.returns.push(item.expected);
+    sourceRows.set(className, source);
+  }
+  const rows = [...sourceRows.values()].map((source) => ({
+    className: source.className,
+    expectedReturn: source.returns.length ? source.returns.reduce((sum, value) => sum + value, 0) / source.returns.length : 0,
+    ...legacyToWeights(source.className),
+  }));
+  return canonicalizeAssumptions(rows);
 }
 
 export function normalizePlan(value: unknown): PlanData | null {
@@ -173,6 +135,32 @@ export function normalizePlan(value: unknown): PlanData | null {
 
 export function validatePlan(value: unknown): value is PlanData {
   return normalizePlan(value) !== null;
+}
+export type Horizon = 'short' | 'medium' | 'long';
+export function horizonForYears(years: number): Horizon {
+  return years < 3 ? 'short' : years <= 6 ? 'medium' : 'long';
+}
+const WEIGHT_KEY: Record<Horizon, 'shortWeight' | 'mediumWeight' | 'longWeight'> = { short: 'shortWeight', medium: 'mediumWeight', long: 'longWeight' };
+export function effectiveReturns(assumptions: Assumption[]) {
+  const dot = (key: 'shortWeight' | 'mediumWeight' | 'longWeight') =>
+    assumptions.reduce((sum, item) => sum + item.expectedReturn * item[key] / 100, 0);
+  const short = dot('shortWeight');
+  // Excel blends the medium-horizon mix 40/60 with the short-term effective return.
+  const medium = dot('mediumWeight') * 0.4 + short * 0.6;
+  return { short, medium, long: dot('longWeight') };
+}
+export function effectiveReturnForYears(assumptions: Assumption[], years: number) {
+  return effectiveReturns(assumptions)[horizonForYears(years)];
+}
+export function requiredSipAllocation(goals: Goal[], assumptions: Assumption[]) {
+  const totals = new Map<string, number>();
+  for (const goal of goals) {
+    const key = WEIGHT_KEY[horizonForYears(goal.years)];
+    for (const item of assumptions) {
+      totals.set(item.className, (totals.get(item.className) || 0) + goal.sip * item[key] / 100);
+    }
+  }
+  return assumptions.map(item => ({ className: item.className, value: totals.get(item.className) || 0 }));
 }
 export function loadPlan(): PlanData {
   const raw = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
