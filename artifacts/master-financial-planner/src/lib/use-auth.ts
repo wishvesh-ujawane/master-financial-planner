@@ -8,6 +8,7 @@ export type AuthState = {
   user: GoogleProfile | null;
   configured: boolean;
   busy: boolean;
+  initializing: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   getToken: () => Promise<string>;
@@ -17,9 +18,10 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<GoogleProfile | null>(null);
   const [busy, setBusy] = useState(false);
   const configured = isConfigured();
+  const [initializing, setInitializing] = useState<boolean>(() => configured && localStorage.getItem(SIGNED_IN_FLAG) === '1');
 
   useEffect(() => {
-    if (!configured || localStorage.getItem(SIGNED_IN_FLAG) !== '1') return;
+    if (!configured || localStorage.getItem(SIGNED_IN_FLAG) !== '1') { setInitializing(false); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -28,6 +30,8 @@ export function useAuth(): AuthState {
         if (!cancelled) setUser(profile);
       } catch {
         localStorage.removeItem(SIGNED_IN_FLAG);
+      } finally {
+        if (!cancelled) setInitializing(false);
       }
     })();
     return () => {
@@ -60,5 +64,5 @@ export function useAuth(): AuthState {
 
   const getToken = useCallback(() => ensureToken(), []);
 
-  return { user, configured, busy, signIn, signOut, getToken };
+  return { user, configured, busy, initializing, signIn, signOut, getToken };
 }

@@ -124,6 +124,7 @@ function App() {
     });
     setModal(null);notify(id?'Changes saved':'Added to your plan');
   };
+  if(auth.configured&&!auth.user) return <AuthGate auth={auth}/>;
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Leaf size={21}/></div><div><div className="brand-name">Master Financial Planner</div><div className="brand-caption">Plan your money</div></div></div>
@@ -156,6 +157,20 @@ function App() {
   </div>;
 }
 
+function AuthGate({auth}:{auth:AuthState}) {
+  const [error,setError]=useState('');
+  const signIn=()=>auth.signIn().catch((e)=>setError(e instanceof Error?e.message:'Google sign-in failed'));
+  return <div className="auth-screen"><div className="auth-card">
+    <div className="brand" style={{justifyContent:'center',marginBottom:18}}><div className="brand-mark"><Leaf size={22}/></div><div style={{textAlign:'left'}}><div className="brand-name">Master Financial Planner</div><div className="brand-caption">Plan your money</div></div></div>
+    <div className="empty-mark" style={{width:54,height:54,margin:'0 auto 14px'}}><LockKeyhole size={24}/></div>
+    <h1 style={{font:'500 22px var(--app-font-serif)',color:'#30483d',margin:'0 0 8px'}}>Sign in to continue</h1>
+    <p className="page-subtitle" style={{maxWidth:360,margin:'0 auto 20px'}}>This planner holds your personal finances. Sign in with Google to open it — your data stays private to your account on this device.</p>
+    {auth.initializing
+      ? <button className="btn btn-primary" disabled style={{margin:'0 auto'}}>Checking your session…</button>
+      : <button className="btn btn-primary" onClick={signIn} disabled={auth.busy} style={{margin:'0 auto'}}><LogIn size={16}/> {auth.busy?'Opening…':'Sign in with Google'}</button>}
+    {error&&<p style={{color:'#93463c',fontSize:12,marginTop:13}}>{error}</p>}
+  </div></div>;
+}
 function Heading({eyebrow,title,subtitle,action}:{eyebrow:string;title:string;subtitle:string;action?:ReactNode}) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p className="page-subtitle">{subtitle}</p></div>{action}</div>;
 }
