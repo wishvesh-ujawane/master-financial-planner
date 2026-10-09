@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, CalendarDays, Check, ChevronRight, CircleHelp, Coins, Download, DownloadCloud, FileUp, Flag, House, Landmark, Leaf, LockKeyhole, LogIn, LogOut, Pencil, Plus, RotateCcw, ShieldCheck, SlidersHorizontal, Sparkles, Target, Trash2, TrendingUp, UploadCloud, User, Wallet, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote, CalendarDays, Check, ChevronRight, CircleHelp, Coins, Download, DownloadCloud, FileUp, Flag, House, Landmark, Leaf, LockKeyhole, LogIn, LogOut, Menu, Pencil, Plus, RotateCcw, Search, ShieldCheck, SlidersHorizontal, Sparkles, Target, Trash2, TrendingUp, UploadCloud, User, Wallet, X } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { blankPlan, compact, currency, effectiveReturns, effectiveReturnForYears, emptyPlan, loadPlan, normalizePlan, requiredSipAllocation, savePlan, type Goal, type Holding, type LineItem, type PlanData } from '@/lib/planner-store';
 import { backupToDrive, getBackupMeta, restoreFromDrive } from '@/lib/drive-backup';
@@ -15,6 +15,12 @@ const NAV = [
   { href:'/', label:'Overview', icon:Activity }, { href:'/assumptions', label:'Assumptions', icon:SlidersHorizontal },
   { href:'/cash-flow', label:'Cash flow', icon:ArrowUpRight }, { href:'/net-worth', label:'Net worth', icon:Landmark },
   { href:'/investments', label:'Investments', icon:TrendingUp }, { href:'/goals', label:'Goals', icon:Flag },
+];
+const MOBILE_NAV = NAV.filter(x=>x.href!=='/assumptions');
+const MOBILE_MENU = [
+  { href:'/assumptions', label:'Assumptions', icon:SlidersHorizontal },
+  { href:'/vault', label:'Private vault', icon:LockKeyhole },
+  { href:'/settings', label:'Privacy & backup', icon:ShieldCheck },
 ];
 const CATEGORIES = [
   'All holdings',
@@ -86,6 +92,7 @@ function App() {
   const [storageMessage,setStorageMessage] = useState(startup.message);
   const [modal,setModal] = useState<{kind:Kind;record?:FormRecord;id?:string}|null>(null);
   const [toast,setToast] = useState('');
+  const [menuOpen,setMenuOpen] = useState(false);
   const [location] = useLocation();
   const auth = useAuth();
   useEffect(()=>{
@@ -124,7 +131,6 @@ function App() {
     });
     setModal(null);notify(id?'Changes saved':'Added to your plan');
   };
-  if(auth.configured&&!auth.user) return <AuthGate auth={auth}/>;
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Leaf size={21}/></div><div><div className="brand-name">Master Financial Planner</div><div className="brand-caption">Plan your money</div></div></div>
@@ -136,7 +142,7 @@ function App() {
       <div className="sidebar-bottom">{auth.user&&<Link href="/settings" className="nav-link" style={{marginBottom:8}}><span className="nav-icon">{auth.user.picture?<img src={auth.user.picture} alt="" width={18} height={18} style={{borderRadius:'50%'}} referrerPolicy="no-referrer"/>:<User size={16}/>}</span>{auth.user.name?.split(' ')[0]||'Account'}</Link>}<div className="privacy-note"><strong><LockKeyhole size={14}/>Private by default</strong>{auth.user?'Your plan lives on this device, and in your private Google Drive backup when you choose to sync.':'Your plan lives on this device. Nothing is sent to a server.'}</div></div>
     </aside>
     <div className="shell-main">
-      <header className="topbar"><div className="crumb"><Link href="/" style={{color:'inherit',textDecoration:'none',cursor:'pointer'}}>Home</Link>{location!=='/'&&<><ChevronRight size={13}/><b>{NAV.find(x=>x.href===location)?.label|| (location==='/settings'?'Privacy & backup':location==='/vault'?'Private vault':'Page not found')}</b></>}</div><div className="top-actions"><span className={`pill ${storageMessage?'pill-warning':''}`} title={storageMessage||'Your changes are stored in this browser'}><i className="privacy-dot"/>{storageMessage?'Storage needs attention':'Saved on this device'}</span><Link href="/settings" className="icon-btn" aria-label="Privacy settings"><LockKeyhole size={16}/></Link></div></header>
+      <header className="topbar"><div className="crumb"><button className="menu-btn" aria-label="Open menu" onClick={()=>setMenuOpen(true)}><Menu size={20}/></button><Link href="/" style={{color:'inherit',textDecoration:'none',cursor:'pointer'}}>Home</Link>{location!=='/'&&<><ChevronRight size={13}/><b>{NAV.find(x=>x.href===location)?.label|| (location==='/settings'?'Privacy & backup':location==='/vault'?'Private vault':'Page not found')}</b></>}</div><div className="top-actions"><span className={`pill ${storageMessage?'pill-warning':''}`} title={storageMessage||'Your changes are stored in this browser'}><i className="privacy-dot"/>{storageMessage?'Storage needs attention':'Saved on this device'}</span><Link href="/settings" className="icon-btn" aria-label="Privacy settings"><LockKeyhole size={16}/></Link></div></header>
       <main className="main-content">
         <Switch>
           <Route path="/" component={()=> <Dashboard plan={plan} userName={auth.user?.name?.split(' ')[0]||''} onAdd={()=>setModal({kind:'holding'})}/>}/>
@@ -151,26 +157,18 @@ function App() {
         </Switch>
       </main>
     </div>
-    <nav className="mobile-nav">{[...NAV,{href:'/vault',label:'Vault',icon:LockKeyhole},{href:'/settings',label:'Privacy',icon:ShieldCheck}].map(({href,label,icon:Icon})=><Link key={href} href={href} className={location===href?'active':''}><Icon/><span>{label}</span></Link>)}</nav>
+    <nav className="mobile-nav">{MOBILE_NAV.map(({href,label,icon:Icon})=><Link key={href} href={href} className={location===href?'active':''}><Icon/><span>{label}</span></Link>)}</nav>
+    {menuOpen&&<div className="mobile-drawer-backdrop" onClick={()=>setMenuOpen(false)}>
+      <aside className="mobile-drawer" onClick={e=>e.stopPropagation()}>
+        <div className="mobile-drawer-head"><span>More</span><button className="icon-btn" aria-label="Close menu" onClick={()=>setMenuOpen(false)}><X size={18}/></button></div>
+        {MOBILE_MENU.map(({href,label,icon:Icon})=><Link key={href} href={href} className={`nav-link ${location===href?'active':''}`} onClick={()=>setMenuOpen(false)}><span className="nav-icon"><Icon size={16}/></span>{label}</Link>)}
+      </aside>
+    </div>}
     {modal&&<EntryModal kind={modal.kind} record={modal.record} onClose={()=>setModal(null)} onSave={(v)=>persist(modal.kind,v,modal.id)}/>}
     {toast&&<div className="toast" role="status"><Check size={15} style={{verticalAlign:'middle',marginRight:7}}/>{toast}</div>}
   </div>;
 }
 
-function AuthGate({auth}:{auth:AuthState}) {
-  const [error,setError]=useState('');
-  const signIn=()=>auth.signIn().catch((e)=>setError(e instanceof Error?e.message:'Google sign-in failed'));
-  return <div className="auth-screen"><div className="auth-card">
-    <div className="brand" style={{justifyContent:'center',marginBottom:18}}><div className="brand-mark"><Leaf size={22}/></div><div style={{textAlign:'left'}}><div className="brand-name">Master Financial Planner</div><div className="brand-caption">Plan your money</div></div></div>
-    <div className="empty-mark" style={{width:54,height:54,margin:'0 auto 14px'}}><LockKeyhole size={24}/></div>
-    <h1 style={{font:'500 22px var(--app-font-serif)',color:'#30483d',margin:'0 0 8px'}}>Sign in to continue</h1>
-    <p className="page-subtitle" style={{maxWidth:360,margin:'0 auto 20px'}}>This planner holds your personal finances. Sign in with Google to open it — your data stays private to your account on this device.</p>
-    {auth.initializing
-      ? <button className="btn btn-primary" disabled style={{margin:'0 auto'}}>Checking your session…</button>
-      : <button className="btn btn-primary" onClick={signIn} disabled={auth.busy} style={{margin:'0 auto'}}><LogIn size={16}/> {auth.busy?'Opening…':'Sign in with Google'}</button>}
-    {error&&<p style={{color:'#93463c',fontSize:12,marginTop:13}}>{error}</p>}
-  </div></div>;
-}
 function Heading({eyebrow,title,subtitle,action}:{eyebrow:string;title:string;subtitle:string;action?:ReactNode}) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p className="page-subtitle">{subtitle}</p></div>{action}</div>;
 }
@@ -363,12 +361,18 @@ function ItemRow({item,kind,open,remove}:{item:LineItem;kind:'asset'|'liability'
 }
 function Investments({plan,open,remove}:{plan:PlanData;open:(x:{kind:Kind;record?:FormRecord;id?:string}|null)=>void;remove:(kind:Kind,id:string)=>void}) {
   const [category,setCategory]=useState('All holdings');
-  const holdings=category==='All holdings'?plan.holdings:plan.holdings.filter(x=>x.category===category);
+  const [search,setSearch]=useState('');
+  const presentCategories=Array.from(new Set(plan.holdings.map(x=>x.category)));
+  const categoryOptions=['All holdings',...presentCategories];
+  const countFor=(c:string)=>c==='All holdings'?plan.holdings.length:plan.holdings.filter(x=>x.category===c).length;
+  const byCategory=category==='All holdings'?plan.holdings:plan.holdings.filter(x=>x.category===category);
+  const q=search.trim().toLowerCase();
+  const holdings=q?byCategory.filter(x=>x.name.toLowerCase().includes(q)||x.category.toLowerCase().includes(q)):byCategory;
   const total=holdings.reduce((a,x)=>a+x.value,0),invested=holdings.reduce((a,x)=>a+x.invested,0),sip=holdings.reduce((a,x)=>a+x.sip,0);
   return <><Heading eyebrow="Investments" title="Your investments" subtitle="Track your holdings, what you've put in, and what you add each month." action={<button className="btn btn-primary" onClick={()=>open({kind:'holding'})}><Plus size={15}/> Add holding</button>}/>
     <div className="cards stats-grid" style={{gridTemplateColumns:'repeat(3,minmax(0,1fr))'}}><Stat label="Current value" value={compact(total)} foot={`${holdings.length} holdings`} icon={TrendingUp}/><Stat label="Amount put in" value={compact(invested)} foot={total-invested>=0?`${compact(total-invested)} growth`:`${compact(invested-total)} below what you put in`} icon={Coins}/><Stat label="Added each month" value={currency(sip)} foot="SIPs and regular deposits" icon={CalendarDays}/></div>
-    <Panel title="Your holdings" subtitle="Filter by type"><div className="segmented">{CATEGORIES.map(c=><button className={`segment ${c===category?'active':''}`} key={c} onClick={()=>setCategory(c)}>{c}</button>)}</div>
-      {holdings.length?<div className="table-wrap"><table><thead><tr><th>Holding</th><th>Current value</th><th>Put in</th><th>Monthly SIP</th><th>Change</th><th></th></tr></thead><tbody>{holdings.map(x=><tr key={x.id}><td><span className="dot"/>{x.name}<div className="setting-desc" style={{marginLeft:16}}>{x.category}</div></td><td className="amount">{currency(x.value)}</td><td className="amount">{currency(x.invested)}</td><td className="amount">{currency(x.sip)}</td><td style={{color:x.value>=x.invested?'#537c5d':'#a45d53'}}>{x.invested?`${((x.value-x.invested)/x.invested*100).toFixed(1)}%`:'—'}</td><td><button className="icon-btn" aria-label={`Edit ${x.name}`} onClick={()=>open({kind:'holding',id:x.id,record:x as unknown as FormRecord})}><Pencil size={14}/></button><button className="icon-btn" aria-label={`Remove ${x.name}`} onClick={()=>remove('holding',x.id)}><Trash2 size={14}/></button></td></tr>)}</tbody></table></div>:<Empty title={category==='All holdings'?'No holdings yet':'Nothing here yet'} copy={category==='All holdings'?'Add the investments you want to track.':'Add a holding here, or pick another type.'} action={<button className="btn" onClick={()=>open({kind:'holding'})}>Add a holding</button>}/>}
+    <Panel title="Your holdings" subtitle="Filter by type"><div className="holdings-controls"><div className="segmented cat-chips">{categoryOptions.map(c=><button className={`segment ${c===category?'active':''}`} key={c} onClick={()=>setCategory(c)}>{c}<span className="seg-count">{countFor(c)}</span></button>)}</div><select className="cat-select" value={category} onChange={e=>setCategory(e.target.value)} aria-label="Filter by type">{categoryOptions.map(c=><option key={c} value={c}>{c} ({countFor(c)})</option>)}</select><div className="holdings-search"><Search size={15}/><input placeholder="Search holdings" value={search} onChange={e=>setSearch(e.target.value)} aria-label="Search holdings"/></div></div>
+      {holdings.length?<div className="table-wrap"><table><thead><tr><th>Holding</th><th>Current value</th><th>Put in</th><th>Monthly SIP</th><th>Change</th><th></th></tr></thead><tbody>{holdings.map(x=><tr key={x.id}><td><span className="dot"/>{x.name}<div className="setting-desc" style={{marginLeft:16}}>{x.category}</div></td><td className="amount">{currency(x.value)}</td><td className="amount">{currency(x.invested)}</td><td className="amount">{currency(x.sip)}</td><td style={{color:x.value>=x.invested?'#537c5d':'#a45d53'}}>{x.invested?`${((x.value-x.invested)/x.invested*100).toFixed(1)}%`:'—'}</td><td><button className="icon-btn" aria-label={`Edit ${x.name}`} onClick={()=>open({kind:'holding',id:x.id,record:x as unknown as FormRecord})}><Pencil size={14}/></button><button className="icon-btn" aria-label={`Remove ${x.name}`} onClick={()=>remove('holding',x.id)}><Trash2 size={14}/></button></td></tr>)}</tbody></table></div>:<Empty title={q?'No matches':category==='All holdings'?'No holdings yet':'Nothing here yet'} copy={q?'No holdings match your search. Try a different term.':category==='All holdings'?'Add the investments you want to track.':'Add a holding here, or pick another type.'} action={<button className="btn" onClick={()=>open({kind:'holding'})}>Add a holding</button>}/>}
     </Panel><Notice style={{marginTop:16}}><ShieldCheck size={16}/>You enter these values yourself and they stay on this device. This app doesn't connect to brokers, exchanges or banks.</Notice>
   </>;
 }
