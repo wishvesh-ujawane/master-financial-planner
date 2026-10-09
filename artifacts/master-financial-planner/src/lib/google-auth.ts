@@ -49,7 +49,33 @@ async function getClient(): Promise<google.accounts.oauth2.TokenClient> {
   return tokenClient;
 }
 
-let cached: { token: string; expiresAt: number } | null = null;
+// Access token is cached in sessionStorage so a page refresh reuses it until expiry
+// (cleared when the tab closes). GIS gives no refresh token, so this is the only way to survive refresh.
+const TOKEN_CACHE_KEY = 'goodmeasure-google-token';
+type CachedToken = { token: string; expiresAt: number };
+
+function readCache(): CachedToken | null {
+  try {
+    const raw = sessionStorage.getItem(TOKEN_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CachedToken>;
+    if (typeof parsed.token !== 'string' || typeof parsed.expiresAt !== 'number') return null;
+    return { token: parsed.token, expiresAt: parsed.expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(value: CachedToken | null): void {
+  try {
+    if (value) sessionStorage.setItem(TOKEN_CACHE_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(TOKEN_CACHE_KEY);
+  } catch {
+    /* storage unavailable (private mode / blocked) — fall back to memory only */
+  }
+}
+
+let cached: CachedToken | null = readCache();
 
 async function requestToken(prompt: string): Promise<google.accounts.oauth2.TokenResponse> {
   const client = await getClient();
@@ -62,10 +88,11 @@ async function requestToken(prompt: string): Promise<google.accounts.oauth2.Toke
 export async function acquireToken(prompt: '' | 'consent' = ''): Promise<string> {
   const response = await requestToken(prompt);
   cached = { token: response.access_token, expiresAt: Date.now() + Number(response.expires_in) * 1000 };
+  writeCache(cached);
   return cached.token;
 }
 
-// Returns a valid token, refreshing silently when the cached one is near expiry.
+// Returns a valid token, reusing the cached one (survives refresh) until it is near expiry.
 export async function ensureToken(): Promise<string> {
   if (cached && Date.now() < cached.expiresAt - 60_000) return cached.token;
   return acquireToken('');
@@ -80,11 +107,13 @@ export async function fetchProfile(token: string): Promise<GoogleProfile> {
 
 export function clearToken(): void {
   cached = null;
+  writeCache(null);
 }
 
 export async function revokeToken(): Promise<void> {
   const token = cached?.token;
   cached = null;
+  writeCache(null);
   if (!token) return;
   await new Promise<void>((resolve) => {
     try {

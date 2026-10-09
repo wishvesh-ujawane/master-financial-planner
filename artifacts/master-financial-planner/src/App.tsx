@@ -93,6 +93,10 @@ function App() {
   const [modal,setModal] = useState<{kind:Kind;record?:FormRecord;id?:string}|null>(null);
   const [toast,setToast] = useState('');
   const [menuOpen,setMenuOpen] = useState(false);
+  const [backupStatus,setBackupStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle');
+  const [restoring,setRestoring] = useState(false);
+  const backedUpPlanRef = useRef<string|null>(null);
+  const restoredRef = useRef(false);
   const [location] = useLocation();
   const auth = useAuth();
   useEffect(()=>{
@@ -101,6 +105,42 @@ function App() {
     catch { setStorageMessage('Changes could not be saved in this browser. Export a backup or allow site storage before continuing.'); }
   },[plan,canSave]);
   useEffect(()=>{ saveVault(vault); },[vault]);
+  useEffect(()=>{
+    if(!auth.user){ restoredRef.current=false; backedUpPlanRef.current=null; setBackupStatus('idle'); return; }
+    if(restoredRef.current) return;
+    let cancelled=false;
+    (async()=>{
+      setRestoring(true);
+      try{
+        const token=await auth.getToken();
+        const envelope=await restoreFromDrive(token);
+        const candidate=envelope?normalizePlan((envelope as {plan?:unknown}).plan??envelope):null;
+        if(cancelled)return;
+        if(candidate){ setCanSave(true); setPlan(candidate); backedUpPlanRef.current=JSON.stringify(candidate); }
+        else { backedUpPlanRef.current=JSON.stringify(plan); }
+      }catch{
+        if(!cancelled) backedUpPlanRef.current=JSON.stringify(plan); // restore failed; keep local plan as the baseline
+      }finally{
+        if(!cancelled){ restoredRef.current=true; setRestoring(false); }
+      }
+    })();
+    return ()=>{ cancelled=true; };
+  },[auth.user]);
+  useEffect(()=>{
+    if(!auth.user||!restoredRef.current)return;
+    const snapshot=JSON.stringify(plan);
+    if(backedUpPlanRef.current===snapshot)return;
+    const handle=window.setTimeout(async()=>{
+      try{
+        setBackupStatus('saving');
+        const token=await auth.getToken();
+        await backupToDrive(token,plan);
+        backedUpPlanRef.current=snapshot;
+        setBackupStatus('saved');
+      }catch{ setBackupStatus('error'); }
+    },2500);
+    return ()=>window.clearTimeout(handle);
+  },[plan,auth.user]);
   useEffect(()=>{ if(!toast)return;const t=window.setTimeout(()=>setToast(''),2600);return()=>window.clearTimeout(t);},[toast]);
   const notify=(s:string)=>setToast(s);
   const updatePlan=(next:PlanData|((p:PlanData)=>PlanData))=>{setCanSave(true);setPlan(next);};
@@ -131,6 +171,7 @@ function App() {
     });
     setModal(null);notify(id?'Changes saved':'Added to your plan');
   };
+  if(auth.configured&&!auth.user) return <AuthGate auth={auth}/>;
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Leaf size={21}/></div><div><div className="brand-name">Master Financial Planner</div><div className="brand-caption">Plan your money</div></div></div>
@@ -139,10 +180,10 @@ function App() {
       <div className="nav-label">Privacy</div>
       <Link href="/vault" className={`nav-link ${location==='/vault'?'active':''}`}><span className="nav-icon"><LockKeyhole size={16}/></span>Private vault</Link>
       <Link href="/settings" className={`nav-link ${location==='/settings'?'active':''}`}><span className="nav-icon"><ShieldCheck size={16}/></span>Privacy & backup</Link>
-      <div className="sidebar-bottom">{auth.user&&<Link href="/settings" className="nav-link" style={{marginBottom:8}}><span className="nav-icon">{auth.user.picture?<img src={auth.user.picture} alt="" width={18} height={18} style={{borderRadius:'50%'}} referrerPolicy="no-referrer"/>:<User size={16}/>}</span>{auth.user.name?.split(' ')[0]||'Account'}</Link>}<div className="privacy-note"><strong><LockKeyhole size={14}/>Private by default</strong>{auth.user?'Your plan lives on this device, and in your private Google Drive backup when you choose to sync.':'Your plan lives on this device. Nothing is sent to a server.'}</div></div>
+      <div className="sidebar-bottom">{auth.user&&<Link href="/settings" className="nav-link" style={{marginBottom:8}}><span className="nav-icon">{auth.user.picture?<img src={auth.user.picture} alt="" width={18} height={18} style={{borderRadius:'50%'}} referrerPolicy="no-referrer"/>:<User size={16}/>}</span>{auth.user.name?.split(' ')[0]||'Account'}</Link>}<div className="privacy-note"><strong><LockKeyhole size={14}/>Private by default</strong>{auth.user?'Your plan lives on this device and backs up automatically to your private Google Drive.':'Your plan lives on this device. Nothing is sent to a server.'}</div></div>
     </aside>
     <div className="shell-main">
-      <header className="topbar"><div className="crumb"><button className="menu-btn" aria-label="Open menu" onClick={()=>setMenuOpen(true)}><Menu size={20}/></button><Link href="/" style={{color:'inherit',textDecoration:'none',cursor:'pointer'}}>Home</Link>{location!=='/'&&<><ChevronRight size={13}/><b>{NAV.find(x=>x.href===location)?.label|| (location==='/settings'?'Privacy & backup':location==='/vault'?'Private vault':'Page not found')}</b></>}</div><div className="top-actions"><span className={`pill ${storageMessage?'pill-warning':''}`} title={storageMessage||'Your changes are stored in this browser'}><i className="privacy-dot"/>{storageMessage?'Storage needs attention':'Saved on this device'}</span><Link href="/settings" className="icon-btn" aria-label="Privacy settings"><LockKeyhole size={16}/></Link></div></header>
+      <header className="topbar"><div className="crumb"><button className="menu-btn" aria-label="Open menu" onClick={()=>setMenuOpen(true)}><Menu size={20}/></button><Link href="/" style={{color:'inherit',textDecoration:'none',cursor:'pointer'}}>Home</Link>{location!=='/'&&<><ChevronRight size={13}/><b>{NAV.find(x=>x.href===location)?.label|| (location==='/settings'?'Privacy & backup':location==='/vault'?'Private vault':'Page not found')}</b></>}</div><div className="top-actions">{auth.user&&<span className={`pill ${backupStatus==='error'?'pill-warning':''}`} title={restoring?'Restoring your latest Google Drive backup':backupStatus==='error'?'Could not back up to Google Drive — open Privacy & backup to retry':'Your changes back up automatically to your private Google Drive'}><i className="privacy-dot"/>{restoring?'Restoring…':backupStatus==='saving'?'Backing up…':backupStatus==='error'?'Drive backup failed':backupStatus==='saved'?'Backed up to Drive':'Drive backup on'}</span>}<span className={`pill ${storageMessage?'pill-warning':''}`} title={storageMessage||'Your changes are stored in this browser'}><i className="privacy-dot"/>{storageMessage?'Storage needs attention':'Saved on this device'}</span><Link href="/settings" className="icon-btn" aria-label="Privacy settings"><LockKeyhole size={16}/></Link></div></header>
       <main className="main-content">
         <Switch>
           <Route path="/" component={()=> <Dashboard plan={plan} userName={auth.user?.name?.split(' ')[0]||''} onAdd={()=>setModal({kind:'holding'})}/>}/>
@@ -165,10 +206,25 @@ function App() {
       </aside>
     </div>}
     {modal&&<EntryModal kind={modal.kind} record={modal.record} onClose={()=>setModal(null)} onSave={(v)=>persist(modal.kind,v,modal.id)}/>}
+    {restoring&&<div className="restore-overlay" role="status" aria-live="polite"><div className="restore-card"><div className="shimmer-line w40"/><div className="shimmer-line"/><div className="shimmer-line w80"/><div className="shimmer-line w60"/><p className="restore-text">Restoring your latest Google Drive backup…</p></div></div>}
     {toast&&<div className="toast" role="status"><Check size={15} style={{verticalAlign:'middle',marginRight:7}}/>{toast}</div>}
   </div>;
 }
 
+function AuthGate({auth}:{auth:AuthState}) {
+  const [error,setError]=useState('');
+  const signIn=()=>auth.signIn().catch((e)=>setError(e instanceof Error?e.message:'Google sign-in failed'));
+  return <div className="auth-screen"><div className="auth-card">
+    <div className="brand" style={{justifyContent:'center',marginBottom:18}}><div className="brand-mark"><Leaf size={22}/></div><div style={{textAlign:'left'}}><div className="brand-name">Master Financial Planner</div><div className="brand-caption">Plan your money</div></div></div>
+    <div className="empty-mark" style={{width:54,height:54,margin:'0 auto 14px'}}><LockKeyhole size={24}/></div>
+    <h1 style={{font:'500 22px var(--app-font-serif)',color:'#30483d',margin:'0 0 8px'}}>Sign in to continue</h1>
+    <p className="page-subtitle" style={{maxWidth:360,margin:'0 auto 20px'}}>This planner holds your personal finances. Sign in with Google to open it — your data stays private to your account on this device.</p>
+    {auth.initializing
+      ? <button className="btn btn-primary" disabled style={{margin:'0 auto'}}>Checking your session…</button>
+      : <button className="btn btn-primary" onClick={signIn} disabled={auth.busy} style={{margin:'0 auto'}}><LogIn size={16}/> {auth.busy?'Opening…':'Sign in with Google'}</button>}
+    {error&&<p style={{color:'#93463c',fontSize:12,marginTop:13}}>{error}</p>}
+  </div></div>;
+}
 function Heading({eyebrow,title,subtitle,action}:{eyebrow:string;title:string;subtitle:string;action?:ReactNode}) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p className="page-subtitle">{subtitle}</p></div>{action}</div>;
 }
@@ -433,7 +489,7 @@ function Settings({plan,setPlan,notify,storageMessage,auth}:{plan:PlanData;setPl
   return <><Heading eyebrow="Privacy & backup" title="Privacy & backup" subtitle="No account, no server. Your plan lives in this browser."/>
     <div className="card" style={{padding:22,marginBottom:17,background:storageMessage?'#f6e9e5':'#eff2e8'}}><div style={{display:'flex',gap:14,alignItems:'center'}}><div className="stat-icon" style={{width:42,height:42}}><LockKeyhole size={20}/></div><div><h2 className="card-title">{storageMessage?'Local storage needs attention':'Local-only storage is active'}</h2><div className="card-kicker">{storageMessage||'Your plan is saved in this browser. Other people on this device may access this browser profile, so keep your device protected.'}</div></div><span className={`pill ${storageMessage?'pill-warning':''}`} style={{marginLeft:'auto',whiteSpace:'nowrap'}}>{storageMessage?'Not confirmed':'On this device'}</span></div></div>
      <div className="content-grid"><Panel title="Back up your data" subtitle="Save a copy as a file"><div className="setting-row"><div><div className="setting-title">Download a backup</div><div className="setting-desc">Creates a JSON file containing your current plan.</div></div><button className="btn btn-primary" onClick={exportData}><Download size={15}/> Export JSON</button></div><div className="setting-row"><div><div className="setting-title">Restore from a backup</div><div className="setting-desc">Checks the schema and asks before replacing your current plan.</div></div><input ref={file} type="file" accept="application/json,.json" onChange={restore} style={{display:'none'}}/><button className="btn" onClick={()=>file.current?.click()}><FileUp size={15}/> Choose file</button></div></Panel>
-    <Panel title="Google Drive backup" subtitle={auth.user?`Signed in as ${auth.user.email}`:'Sign in to keep a private copy in your Google Drive'}>{!auth.configured?<div className="setting-row"><div><div className="setting-title">Not available in this build</div><div className="setting-desc">Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID to enable Drive backup and restore.</div></div><span className="pill" style={{background:'#eee9dd',color:'#89795f'}}>Disabled</span></div>:auth.user?<><div className="setting-row"><div style={{display:'flex',gap:12,alignItems:'center'}}>{auth.user.picture?<img src={auth.user.picture} alt="" width={40} height={40} style={{borderRadius:'50%'}} referrerPolicy="no-referrer"/>:<span className="stat-icon" style={{width:40,height:40}}><User size={18}/></span>}<div><div className="setting-title">{auth.user.name||auth.user.email}</div><div className="setting-desc">{auth.user.email}</div></div></div><button className="btn" onClick={signOut} disabled={auth.busy}><LogOut size={15}/> Sign out</button></div><div className="setting-row"><div><div className="setting-title">Back up to Drive</div><div className="setting-desc">Saves your current plan to a private app folder in your Google Drive, visible only to this app.{lastBackup?` Last backup ${new Date(lastBackup).toLocaleString()}.`:''}</div></div><button className="btn btn-primary" onClick={backupNow} disabled={working}><UploadCloud size={15}/> {working?'Working…':'Back up now'}</button></div><div className="setting-row"><div><div className="setting-title">Restore from Drive</div><div className="setting-desc">Pulls your latest Drive backup and replaces the plan on this device after confirmation.</div></div><button className="btn" onClick={restoreNow} disabled={working}><DownloadCloud size={15}/> Restore</button></div></>:<div className="setting-row"><div><div className="setting-title">Connect Google Drive</div><div className="setting-desc">Sign in with Google to enable private cloud backup and restore. Your plan stays on this device until you back it up.</div></div><button className="btn btn-primary" onClick={signIn} disabled={auth.busy}><LogIn size={15}/> Sign in with Google</button></div>}</Panel>
+    <Panel title="Google Drive backup" subtitle={auth.user?`Signed in as ${auth.user.email}`:'Sign in to keep a private copy in your Google Drive'}>{!auth.configured?<div className="setting-row"><div><div className="setting-title">Not available in this build</div><div className="setting-desc">Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID to enable Drive backup and restore.</div></div><span className="pill" style={{background:'#eee9dd',color:'#89795f'}}>Disabled</span></div>:auth.user?<><div className="setting-row"><div style={{display:'flex',gap:12,alignItems:'center'}}>{auth.user.picture?<img src={auth.user.picture} alt="" width={40} height={40} style={{borderRadius:'50%'}} referrerPolicy="no-referrer"/>:<span className="stat-icon" style={{width:40,height:40}}><User size={18}/></span>}<div><div className="setting-title">{auth.user.name||auth.user.email}</div><div className="setting-desc">{auth.user.email}</div></div></div><button className="btn" onClick={signOut} disabled={auth.busy}><LogOut size={15}/> Sign out</button></div><div className="setting-row"><div><div className="setting-title">Back up to Drive</div><div className="setting-desc">While you're signed in, your plan backs up automatically after each change. Use this to back up now. Saved to a private app folder only this app can see.{lastBackup?` Last backup ${new Date(lastBackup).toLocaleString()}.`:''}</div></div><button className="btn btn-primary" onClick={backupNow} disabled={working}><UploadCloud size={15}/> {working?'Working…':'Back up now'}</button></div><div className="setting-row"><div><div className="setting-title">Restore from Drive</div><div className="setting-desc">Pulls your latest Drive backup and replaces the plan on this device after confirmation.</div></div><button className="btn" onClick={restoreNow} disabled={working}><DownloadCloud size={15}/> Restore</button></div></>:<div className="setting-row"><div><div className="setting-title">Connect Google Drive</div><div className="setting-desc">Sign in with Google to enable private cloud backup and restore. Your plan stays on this device until you back it up.</div></div><button className="btn btn-primary" onClick={signIn} disabled={auth.busy}><LogIn size={15}/> Sign in with Google</button></div>}</Panel>
     <Panel title="Financial accounts" subtitle="No integrations are active"><div className="setting-row"><div><div className="setting-title">Bank, broker & exchange links</div><div className="setting-desc">No connections. Every entry in your plan is added manually.</div></div><span className="pill">Private</span></div></Panel></div>
     <Panel title="Reset" subtitle="Start over or clear everything"><div className="setting-row"><div><div className="setting-title">Restore sample data</div><div className="setting-desc">Replace edits with the original example entries. Your export is a good idea first.</div></div><button className="btn btn-danger" onClick={reset}><RotateCcw size={14}/> Restore sample</button></div><div className="setting-row"><div><div className="setting-title">Clear all data</div><div className="setting-desc">Empties your entire planner notebook on this device. Your private vault is kept separate and is not affected. Export a backup first.</div></div><button className="btn btn-danger" onClick={clearAll}><Trash2 size={14}/> Clear all data</button></div></Panel>
      <Notice style={{marginTop:17}}><ShieldCheck size={16}/>Master Financial Planner does not transmit your personal finance data. Clearing browser storage or using a different browser profile can remove or hide your notebook — export backups periodically.</Notice>

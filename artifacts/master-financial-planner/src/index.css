@@ -130,6 +130,8 @@ td:first-child {color:#30483d;font-weight:600}
 .notice {display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border-radius:10px;background:#f2eee1;border:1px solid #e8e0cd;color:#657269;font-size:12px;line-height:1.5;margin-bottom:18px}
 .notice-close {margin-left:auto;flex-shrink:0;border:0;background:transparent;color:#8a9389;cursor:pointer;display:inline-flex;padding:2px;border-radius:6px;align-self:flex-start}
 .notice-close:hover {color:#4d735d}
+.auth-screen {min-height:100vh;display:grid;place-items:center;padding:24px;background:#f4f1e9}
+.auth-card {background:#fffdf6;border:1px solid #e8e0cd;border-radius:18px;padding:40px 34px;max-width:440px;width:100%;text-align:center;box-shadow:0 18px 50px rgba(41,73,61,.08)}
 .setting-row {display:flex;justify-content:space-between;align-items:center;gap:15px;padding:17px 0;border-top:1px solid #eeece3}
 .setting-row:first-of-type {border-top:0}
 .setting-title {font-size:13px;font-weight:600;color:#334c40}
@@ -188,6 +190,12 @@ td:first-child {color:#30483d;font-weight:600}
 .mobile-drawer-head .icon-btn:hover {background:rgba(255,255,255,.1);color:#fff}
 @keyframes slideIn {from{transform:translateX(-100%)}to{transform:translateX(0)}}
 .toast {position:fixed;right:24px;bottom:24px;background:#28483b;color:#f5f0df;padding:12px 17px;border-radius:10px;font-size:12px;z-index:70;box-shadow:0 8px 24px #203d3440}
+.restore-overlay {position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:rgba(247,244,236,.74);backdrop-filter:blur(3px)}
+.restore-card {width:min(360px,86vw);background:#faf8f0;border:1px solid #e5e1d4;border-radius:16px;padding:24px;box-shadow:0 16px 44px rgba(38,58,46,.14);display:grid;gap:12px}
+.shimmer-line {height:13px;border-radius:7px;background:linear-gradient(90deg,#ece8dc 25%,#f6f3e9 37%,#ece8dc 63%);background-size:400% 100%;animation:shimmer 1.4s ease infinite}
+.shimmer-line.w40 {width:40%}.shimmer-line.w60 {width:60%}.shimmer-line.w80 {width:80%}
+.restore-text {margin:7px 0 0;font-size:12px;color:#6c7a71;text-align:center}
+@keyframes shimmer {0%{background-position:100% 0}100%{background-position:0 0}}
 .privacy-dot {width:7px;height:7px;border-radius:50%;background:#9dc796;display:inline-block}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible {outline:3px solid rgba(79,127,98,.45);outline-offset:2px}
 @keyframes fade {from{opacity:0}to{opacity:1}} @keyframes rise {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
